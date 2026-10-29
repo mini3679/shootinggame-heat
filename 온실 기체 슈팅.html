@@ -1,0 +1,473 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>온실 기체 슈팅</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@600&display=swap">
+<style>
+/* Layout: 한 화면 아케이드 — 가운데 세로형 게임 캔버스(480×720 비율), 그 위에 시작·퀴즈·결과 오버레이. 우주 배경 단일 다크 테마 */
+:root{
+  --space:#070D18; --panel:#101B2B; --panel-2:#17263A; --ink:#E8EEF5; --muted:#8FA2B6; --line:#24364D;
+  --sun:#FFC83D; --ir:#FF5A3C; --ok:#3DDC97; --bad:#FF8A5B; --cyan:#62D2FF;
+  --display:"Black Han Sans","IBM Plex Sans KR",system-ui,sans-serif;
+  --body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+*{box-sizing:border-box}
+body{background:var(--space);color:var(--ink);font-family:var(--body);margin:0;word-break:keep-all;overflow-wrap:anywhere;
+  padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));padding-block:8px;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+#stage{position:relative;aspect-ratio:2/3;height:min(100%,calc((100vw - 16px)*1.5));max-width:100%;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--line),0 20px 60px #000a}
+#game{display:block;width:100%;height:100%;background:var(--space)}
+.ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;padding:22px;background:#070D18e6;text-align:center;gap:14px;overflow-y:auto}
+.ov h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,7.5cqw,44px);line-height:1.1;margin:0;text-wrap:balance}
+#stage{container-type:size}
+.ov h1 .ir{color:var(--ir)}
+.ov p{margin:0;color:var(--muted);font-size:14px;line-height:1.6;max-width:34em}
+.btn{border:0;background:var(--sun);color:#1A1200;font-weight:700;padding:12px 26px;border-radius:999px;font-size:16px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.howto{display:grid;gap:8px;text-align:left;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;max-width:340px;width:100%}
+.howto div{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:start;color:var(--ink)}
+.howto b{color:var(--sun)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--cyan)}
+
+/* Quiz */
+.quiz{justify-content:flex-start;padding-top:28px}
+.qhead{display:flex;justify-content:space-between;width:100%;max-width:400px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.qtimer{width:100%;max-width:400px;height:6px;background:var(--panel-2);border-radius:3px;overflow:hidden}
+.qtimer i{display:block;height:100%;background:var(--sun);width:100%}
+.qtext{font-size:clamp(16px,4.2cqw,20px);font-weight:700;line-height:1.5;max-width:400px;text-wrap:balance}
+.choices{display:grid;gap:8px;width:100%;max-width:400px}
+.choice{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;text-align:left;background:var(--panel);border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;font-size:15px;cursor:pointer;color:var(--ink)}
+.choice:hover{border-color:var(--cyan)}
+.choice .k{font-family:var(--mono);width:26px;height:26px;border-radius:6px;display:grid;place-items:center;background:var(--panel-2);font-size:13px}
+.choice.right{border-color:var(--ok);background:#0F3326}
+.choice.wrong{border-color:var(--bad);background:#3A1D14}
+.choice:disabled{cursor:default}
+.feedback{max-width:400px;font-size:14px;line-height:1.6;border-radius:10px;padding:12px 14px;text-align:left}
+.feedback.ok{background:#0F3326;color:#BDF5DA}
+.feedback.no{background:#3A1D14;color:#FFD6C4}
+.feedback b{display:block;font-size:16px;margin-bottom:2px}
+.lvl{display:flex;gap:4px;justify-content:center}
+.lvl i{width:22px;height:8px;border-radius:2px;background:var(--panel-2)}
+.lvl i.on{background:var(--sun)}
+
+/* Results */
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%;max-width:380px}
+.stats>div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 6px}
+.stats .v{font-family:var(--mono);font-size:22px;color:var(--sun)}
+.stats .k{font-size:11px;color:var(--muted)}
+.review{width:100%;max-width:400px;text-align:left;display:grid;gap:8px}
+.review .item{background:var(--panel);border-left:3px solid var(--bad);border-radius:0 8px 8px 0;padding:8px 12px;font-size:13px;line-height:1.55}
+.review .item b{color:var(--ok)}
+#pauseBtn{position:absolute;top:10px;right:10px;width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:#101B2Bcc;cursor:pointer;font-size:14px}
+/* Login · me · board */
+.loginf{display:grid;gap:10px;width:100%;max-width:320px;text-align:left}
+.loginf label{font-size:13px;font-weight:600;display:grid;gap:4px}
+.loginf input{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);font-size:16px;color:var(--ink);user-select:text;-webkit-user-select:text}
+.loginf input:focus{border-color:var(--cyan);outline:none}
+.lerr{color:var(--bad);font-size:13px;min-height:1.2em;font-weight:600}
+.me{display:grid;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 16px;min-width:240px}
+.me .who{font-weight:700}
+.me .who b{font-family:var(--mono);color:var(--cyan);margin-right:6px}
+.me .tot{font-size:13px;color:var(--muted)}
+.me .tot b{font-family:var(--mono);color:var(--sun);font-size:18px}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.btn.sm{padding:7px 14px;font-size:13px}
+.board{list-style:none;margin:0;padding:0;width:100%;max-width:400px;display:grid;gap:4px;text-align:left}
+.board li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:14px}
+.board li .r{font-family:var(--mono);color:var(--muted);text-align:center}
+.board li:nth-child(1) .r{color:#FFD34D}.board li:nth-child(2) .r{color:#C9D3D8}.board li:nth-child(3) .r{color:#E3A06A}
+.board li .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board li .n small{color:var(--muted);font-family:var(--mono);margin-right:6px}
+.board li .s{font-family:var(--mono);color:var(--sun);font-variant-numeric:tabular-nums;text-align:right}
+.board li .s small{display:block;color:var(--muted);font-size:10px}
+.board li.mine{border-color:var(--cyan);background:#10283A}
+.bnote{font-size:12px;color:var(--muted);max-width:360px}
+.gain{font-family:var(--mono);color:var(--ok)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="stage">
+  <canvas id="game" width="480" height="720" aria-label="온실 기체 슈팅 게임 화면"></canvas>
+  <button id="pauseBtn" hidden aria-label="일시 정지">❚❚</button>
+
+  <div class="ov" id="loginOv">
+    <div class="eyebrow">통합과학 · 지구 환경 변화와 인간 생활</div>
+    <h1>온실 기체<br><span class="ir">슈팅</span></h1>
+    <p>학번과 이름을 입력하고 입장하세요. 같은 학번으로 여러 번 도전하면 가장 높은 점수가 기록됩니다.</p>
+    <form class="loginf" id="loginForm" novalidate>
+      <label>학번<input id="lsid" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="예: 10315"></label>
+      <label>이름<input id="lname" autocomplete="off" maxlength="20" placeholder="예: 김하늘"></label>
+      <div class="lerr" id="lerr" aria-live="polite"></div>
+      <button class="btn" type="submit">입장하기</button>
+    </form>
+  </div>
+
+  <div class="ov" id="titleOv" hidden>
+    <div class="eyebrow">통합과학 · 지구 환경 변화와 인간 생활</div>
+    <h1>온실 기체<br><span class="ir">슈팅</span></h1>
+    <p>지구로 내려오는 온실 기체 분자를 막아 지구 기온을 지키세요. 중간중간 나오는 문제를 맞히면 미사일이 강해집니다.</p>
+    <div class="howto">
+      <div><span>✈︎</span><span>화면을 <b>끌거나</b> 마우스·방향키로 비행기를 움직여요. 미사일은 자동 발사!</span></div>
+      <div><span>🌡</span><span>분자가 지구에 닿으면 기온이 올라요. <b>+2.0 °C</b>가 되거나 목숨 3개를 모두 잃으면 끝.</span></div>
+      <div><span>?</span><span>문제를 맞히면 <b>미사일 레벨 UP</b> (최대 Lv.7). 틀리면 해설을 보고 다음 기회를!</span></div>
+    </div>
+    <div class="me"><div class="who" id="meWho"></div><div class="tot">내 최고 <b id="meTotal">0</b>점 <span id="meRank"></span></div></div>
+    <button class="btn" id="startBtn">게임 시작</button>
+    <div class="row"><button class="btn ghost sm" id="boardBtn">1학년 전체 순위</button><button class="btn ghost sm" id="switchBtn">학생 바꾸기</button></div>
+  </div>
+
+  <div class="ov quiz" id="quizOv" hidden>
+    <div class="qhead"><span id="qNum">문제 1</span><span>미사일 Lv.<span id="qLv">1</span></span></div>
+    <div class="qtimer"><i id="qBar"></i></div>
+    <div class="qtext" id="qText"></div>
+    <div class="choices" id="qChoices"></div>
+    <div class="feedback" id="qFb" hidden></div>
+    <div class="lvl" id="qLvl"></div>
+    <button class="btn" id="qGo" hidden>계속 싸우기 ▶</button>
+  </div>
+
+  <div class="ov" id="pauseOv" hidden>
+    <h1>일시 정지</h1>
+    <button class="btn" id="resumeBtn">계속하기</button>
+    <button class="btn ghost" id="quitBtn">처음 화면으로</button>
+  </div>
+
+  <div class="ov" id="overOv" hidden>
+    <div class="eyebrow" id="overWhy"></div>
+    <h1 id="overTitle">게임 종료</h1>
+    <div class="stats">
+      <div><div class="v" id="sScore">0</div><div class="k">점수</div></div>
+      <div><div class="v" id="sQuiz">0/0</div><div class="k">맞힌 문제</div></div>
+      <div><div class="v" id="sLv">1</div><div class="k">최종 미사일 Lv</div></div>
+    </div>
+    <div class="me"><div class="tot">이번 판 <span class="gain" id="gainTxt">0</span> · 내 최고 <b id="overTotal">0</b>점 <span id="overRank"></span></div></div>
+    <p class="bnote" id="saveNote"></p>
+    <div class="review" id="review"></div>
+    <div class="row"><button class="btn" id="againBtn">다시 하기</button><button class="btn ghost sm" id="overBoardBtn">1학년 전체 순위</button><button class="btn ghost sm" id="homeBtn">처음 화면</button></div>
+  </div>
+
+  <div class="ov" id="boardOv" hidden>
+    <div class="eyebrow">최고 점수 순위</div>
+    <h1>1학년 전체 순위</h1>
+    <p class="bnote" id="boardNote"></p>
+    <ol class="board" id="boardList"></ol>
+    <button class="btn" id="boardClose">돌아가기</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const W=480,H=720;
+const cv=document.getElementById('game'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+function fit(){const dpr=Math.min(2,window.devicePixelRatio||1);cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+fit();
+
+/* ---------- Questions (II-1-3 지구 환경 변화와 인간 생활) — 첫 번째 보기가 정답, 출제 때 섞음 ---------- */
+const QS=[
+ {q:'지구가 태양으로부터 흡수한 에너지와 같은 양의 에너지를 우주로 방출하면서 이루는 에너지 평형은?',c:['복사 평형','온실 효과','엘니뇨','대기 대순환'],e:'흡수한 만큼 방출해서 평형을 이루는 것을 복사 평형이라고 해요.'},
+ {q:'지구 열수지 그림에서 태양 복사 에너지 100 중 지표면이 흡수하는 양은?',c:['47','23','30','70'],e:'태양 복사 100 중 30은 반사·산란, 23은 대기가 흡수, 47은 지표면이 흡수해요.'},
+ {q:'태양 복사 에너지 100 중 대기와 지표에서 반사·산란되어 우주로 되돌아가는 양은?',c:['30','47','12','98'],e:'대기의 반사·산란 23 + 지표면 반사 7 = 30이 그대로 우주로 돌아가요.'},
+ {q:'지표면이 방출하는 지구 복사 에너지 116 중 대기에 흡수되지 않고 우주로 바로 빠져나가는 양은?',c:['12','104','98','58'],e:'116 중 104는 대기가 흡수하고, 12만 우주로 바로 빠져나가요.'},
+ {q:'지구 열수지 그림에서 대기가 지표로 다시 내보내는 재복사 에너지의 양은?',c:['98','58','24','5'],e:'대기는 98만큼을 지표로 재복사해요. 그래서 지표가 따뜻하게 유지돼요.'},
+ {q:'지구가 복사 평형 상태일 때, 태양 복사 100을 받으면 우주로 내보내는 에너지의 합은?',c:['100 (반사 30 + 지구 복사 70)','70','30','116'],e:'반사 30과 지구 복사 70을 합해 100을 내보내므로, 받은 만큼 내보내는 복사 평형이에요.'},
+ {q:'지표에서 방출되는 지구 복사 에너지를 흡수하였다가 지표로 재복사하는 기체를 무엇이라 할까?',c:['온실 기체','오존','질소 기체','수소 기체'],e:'이산화 탄소, 메테인, 산화 이질소 같은 기체를 온실 기체라고 해요.'},
+ {q:'다음 중 온실 기체가 아닌 것은?',c:['산소','이산화 탄소','메테인','산화 이질소'],e:'수업에서 배운 온실 기체의 예는 이산화 탄소, 메테인, 산화 이질소예요. 산소는 온실 기체가 아니에요.'},
+ {q:'대기 중 온실 기체가 지표에서 방출되는 지구 복사 에너지를 재복사하는 현상은?',c:['온실 효과','복사 평형','사막화','엘니뇨'],e:'온실 기체의 재복사로 지표가 따뜻해지는 현상이 온실 효과예요.'},
+ {q:'온실 효과 덕분에 지구는 어떤 상태를 유지할 수 있을까?',c:['생명체가 살기에 적절한 평균 온도','항상 영하의 온도','하루 종일 같은 기온','비가 오지 않는 날씨'],e:'온실 효과 자체는 나쁜 것이 아니에요. 지구가 생명체가 살기 좋은 평균 온도를 유지하게 해 줘요.'},
+ {q:'지구 대기 중 온실 기체가 증가하여 지구의 평균 기온이 상승하는 현상은?',c:['지구 온난화','엘니뇨','사막화','복사 평형'],e:'온실 기체 증가로 평균 기온이 오르는 현상을 지구 온난화라고 해요.'},
+ {q:'지구 온난화의 메커니즘을 순서대로 바르게 나타낸 것은?',c:['온실 기체 증가 → 적외선 흡수·재복사 증가 → 우주로 빠져나가는 에너지 감소 → 평균 기온 상승','온실 기체 감소 → 태양 복사 증가 → 평균 기온 상승','태양이 커짐 → 지구 복사 증가 → 평균 기온 하강','해수면 상승 → 온실 기체 증가 → 평균 기온 하강'],e:'온실 기체가 더 많은 적외선을 흡수해 지구로 되돌려 보내면, 지구에 남는 에너지가 많아져 기온이 올라요.'},
+ {q:'온실 기체가 증가하면 우주로 빠져나가는 지구 복사 에너지는 어떻게 될까?',c:['줄어든다','늘어난다','변하지 않는다','두 배가 된다'],e:'우주로 빠져나가는 에너지가 줄어들어 지구에 남는 에너지가 많아져요.'},
+ {q:'다음 중 지구 온난화의 원인이 아닌 것은?',c:['나무 심기','화석 연료의 사용','삼림 훼손','교통수단 이용'],e:'화석 연료 사용, 삼림 훼손, 목축업, 교통수단 이용이 지구 온난화의 원인이에요. 나무 심기는 이산화 탄소를 줄여요.'},
+ {q:'삼림 훼손이 지구 온난화의 원인이 되는 까닭은?',c:['이산화 탄소를 흡수하는 나무가 줄어들어서','나무가 산소를 너무 많이 내보내서','숲이 태양 빛을 모두 반사해서','숲이 비를 막아서'],e:'나무는 광합성으로 이산화 탄소를 흡수해요. 숲이 사라지면 대기 중 이산화 탄소가 늘어요.'},
+ {q:'목축업이 지구 온난화의 원인으로 꼽히는 까닭은?',c:['가축(소 등)이 온실 기체인 메테인을 많이 내보내서','가축이 산소를 흡수해서','목장이 바다를 넓혀서','가축이 태양 빛을 가려서'],e:'소 같은 가축의 소화 과정에서 메테인이 발생해요. 메테인은 강력한 온실 기체예요.'},
+ {q:'다음 중 지구 온난화에 따른 피해가 아닌 것은?',c:['해수면 하강','홍수','가뭄','생태계 파괴'],e:'지구 온난화로 해수면은 상승해요. 홍수, 가뭄, 생태계 파괴도 지구 온난화의 피해예요.'},
+ {q:'지구 온난화로 해수면이 상승하는 까닭으로 옳은 것은?',c:['빙하가 녹고 바닷물의 부피가 늘어나서','바닷물이 증발해서','비가 적게 와서','달이 멀어져서'],e:'빙하가 녹은 물이 바다로 흘러들고, 따뜻해진 바닷물이 팽창해 해수면이 올라가요.'},
+ {q:'평상시 적도 부근 태평양에서 무역풍의 영향으로 따뜻한 해수는 어느 쪽으로 이동할까?',c:['서쪽 (서태평양 쪽)','동쪽 (동태평양 쪽)','북쪽','남쪽'],e:'평상시에는 무역풍 때문에 따뜻한 해수가 서쪽으로 이동해 서태평양 수온이 높아요.'},
+ {q:'평상시 서태평양과 동태평양 지역의 날씨로 옳은 것은?',c:['서태평양 많은 비, 동태평양 맑고 건조','서태평양 가뭄, 동태평양 홍수','두 지역 모두 가뭄','두 지역 모두 많은 비'],e:'평상시 서태평양은 비가 많고, 동태평양은 맑고 건조하며 좋은 어장이 만들어져요.'},
+ {q:'엘니뇨에 대한 설명으로 옳은 것은?',c:['적도 부근 동태평양의 표층 수온이 평년보다 높은 상태가 지속되는 현상','적도 부근 서태평양의 수온이 낮아지는 현상','사막이 넓어지는 현상','극지방 빙하가 늘어나는 현상'],e:'엘니뇨는 동태평양 적도 부근 표층 수온이 평년보다 높은 상태가 계속되는 현상이에요.'},
+ {q:'엘니뇨가 발생할 때 무역풍은 어떻게 될까?',c:['약해진다','강해진다','방향은 같고 세기만 두 배가 된다','완전히 사라진 뒤 다시 강해진다'],e:'무역풍이 약해지면 따뜻한 해수가 동쪽으로 이동해 동태평양 수온이 올라가요.'},
+ {q:'엘니뇨가 발생하면 서태평양 지역에는 주로 어떤 현상이 나타날까?',c:['가뭄','홍수','어획량 증가','폭설'],e:'엘니뇨 때 서태평양은 비가 줄어 가뭄이 생겨요.'},
+ {q:'엘니뇨가 발생하면 동태평양 지역에 나타나는 현상은?',c:['홍수, 어획량 감소로 인한 해양 생태계 교란','가뭄과 어획량 증가','맑고 건조한 날씨와 좋은 어장','해수면 하강'],e:'동태평양은 홍수가 나고, 좋은 어장이 사라져 어획량이 줄어요.'},
+ {q:'엘니뇨가 발생하는 원인으로 옳은 것은?',c:['대기 대순환의 변화로 표층 해수의 흐름이 영향을 받아서','지진으로 바닷물이 흔들려서','달의 인력이 갑자기 커져서','오존층이 두꺼워져서'],e:'대기 대순환이 변하면 바람이 바뀌고, 그 영향으로 표층 해수의 흐름이 달라져 엘니뇨가 생겨요.'},
+ {q:'사막은 연평균 강수량이 얼마 이하인 건조한 지역일까?',c:['250 mm 이하','1000 mm 이하','50 mm 이하','2500 mm 이하'],e:'연평균 강수량 250 mm 이하인 건조한 지역을 사막이라고 해요.'},
+ {q:'사막은 극지방을 제외한 전 세계 면적의 약 몇 %를 차지할까?',c:['약 25 %','약 5 %','약 50 %','약 75 %'],e:'사막은 극지방을 제외한 전 세계 면적의 약 25 %예요.'},
+ {q:'다음 중 사막화의 인위적 요인이 아닌 것은?',c:['대기 대순환의 변화','과잉 경작','과잉 방목','무분별한 삼림 파괴'],e:'대기 대순환의 변화는 자연적 요인이에요. 과잉 경작, 과잉 방목, 삼림 파괴는 인위적 요인이에요.'},
+ {q:'사막화의 자연적 요인을 순서대로 바르게 나타낸 것은?',c:['대기 대순환 변화 → 증발량 증가 → 강수량 감소 → 장기간 가뭄 → 사막 확장','강수량 증가 → 증발량 감소 → 사막 확장','과잉 방목 → 삼림 파괴 → 사막 확장','해수면 상승 → 홍수 → 사막 확장'],e:'대기 대순환이 변해 증발이 늘고 비가 줄면, 가뭄이 오래 이어져 사막이 넓어져요.'},
+ {q:'사막화는 주로 위도 몇 도 부근에서 일어날까?',c:['30° 부근','0° (적도) 부근','60° 부근','90° (극) 부근'],e:'사막화는 주로 위도 30° 부근에서 일어나요.'},
+ {q:'위도 30° 부근에서 사막화가 잘 일어나는 까닭은?',c:['하강 기류가 발생해 강수량이 적고 증발량이 많아서','상승 기류가 발생해 비가 많이 와서','바다와 가까워서','기온이 매우 낮아서'],e:'위도 30° 부근은 하강 기류 때문에 구름이 잘 생기지 않아 비가 적고 증발이 많아요.'},
+ {q:'지구 환경 변화로 앞으로 예상되는 문제가 아닌 것은?',c:['생물 다양성 증가','물 부족','감염병 확산','생물 다양성 감소'],e:'지구 환경 변화로 생물 다양성 감소, 물 부족, 감염병 같은 문제가 예상돼요.'}
+];
+
+/* ---------- State ---------- */
+let mode='title',G;
+const keys={};
+let ME=null;
+const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MEM={};
+function lsGet(k,d){try{const v=localStorage.getItem(k);if(v!=null)return JSON.parse(v)}catch(e){}return k in MEM?MEM[k]:d}
+function lsSet(k,v){MEM[k]=v;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+const stars=[...Array(70)].map(()=>({x:Math.random()*W,y:Math.random()*H,s:Math.random()*1.6+.3,v:Math.random()*40+20}));
+
+function newGame(){
+  const order=QS.map((_,i)=>i).sort(()=>Math.random()-.5);
+  G={t:0,score:0,lives:3,temp:0,lv:1,inv:0,px:W/2,py:H-110,tx:null,ty:null,
+     bullets:[],enemies:[],ebullets:[],parts:[],texts:[],
+     fireT:0,missT:0,spawnT:1,kills:0,nextQuiz:6,quizN:0,right:0,wrongList:[],order,qi:0,boss:null,bossDue:false,flash:0};
+}
+
+/* ---------- Weapons ---------- */
+const WEAP=[null,
+ {rate:.24,dmg:1,shots:[[0,0]]},
+ {rate:.22,dmg:1,shots:[[-9,0],[9,0]]},
+ {rate:.2,dmg:1,shots:[[0,0],[-10,-.18],[10,.18]]},
+ {rate:.16,dmg:1.4,shots:[[0,0],[-12,-.16],[12,.16]]},
+ {rate:.15,dmg:1.4,shots:[[0,0],[-8,-.12],[8,.12],[-14,-.28],[14,.28]]},
+ {rate:.14,dmg:1.6,shots:[[0,0],[-8,-.12],[8,.12],[-14,-.28],[14,.28]],homing:.7},
+ {rate:.11,dmg:2,shots:[[0,0],[-8,-.1],[8,.1],[-14,-.22],[14,.22],[-20,-.36],[20,.36]],homing:.45}
+];
+function fire(){const w=WEAP[G.lv];
+  for(const [ox,ang] of w.shots){G.bullets.push({x:G.px+ox,y:G.py-26,vx:Math.sin(ang)*620,vy:-Math.cos(ang)*620,dmg:w.dmg,r:G.lv>=4?4:3});}}
+function fireHoming(){for(const s of [-1,1])G.bullets.push({x:G.px+s*22,y:G.py-6,vx:s*160,vy:-260,dmg:3,r:5,homing:true,life:2.6});}
+
+/* ---------- Enemies ---------- */
+function spawnEnemy(){
+  const d=Math.min(1,G.t/150);const r=Math.random();let e;
+  if(r<.18+d*.2) e={type:'ch4',hp:5+d*4,r:20,vy:55+d*30,score:150};
+  else if(r<.3+d*.25) e={type:'n2o',hp:2,r:13,vy:120+d*60,score:120};
+  else e={type:'co2',hp:2+d*2,r:16,vy:70+d*45,score:100};
+  e.maxhp=e.hp;e.x=30+Math.random()*(W-60);e.y=-30;e.vx=(Math.random()-.5)*(30+d*50);e.rot=Math.random()*6;e.hit=0;e.shootT=2+Math.random()*3;
+  G.enemies.push(e);}
+function spawnBoss(){const n=G.quizN;G.boss={x:W/2,y:-80,ty:120,hp:80+n*18,maxhp:80+n*18,t:0,shootT:1,hit:0,r:58};
+  floatText(W/2,H/2,'거대 온실 기체 구름 출현!','#FF5A3C',26);}
+
+/* ---------- Helpers ---------- */
+function boom(x,y,c,n){for(let i=0;i<n;i++){const a=Math.random()*6.283,s=Math.random()*180+40;G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,l:.5+Math.random()*.4,c});}}
+function floatText(x,y,t,c,size){G.texts.push({x,y,t,c,size:size||16,l:1.6});}
+function hurt(){if(G.inv>0)return;G.lives--;G.inv=2;G.flash=.4;boom(G.px,G.py,'#62D2FF',30);if(G.lives<=0)gameOver('목숨을 모두 잃었습니다');}
+
+/* ---------- Update ---------- */
+function update(dt){
+  G.t+=dt;
+  // move
+  const sp=360;let mx=0,my=0;
+  if(keys.ArrowLeft||keys.a)mx--;if(keys.ArrowRight||keys.d)mx++;if(keys.ArrowUp||keys.w)my--;if(keys.ArrowDown||keys.s)my++;
+  if(mx||my){G.px+=mx*sp*dt;G.py+=my*sp*dt;G.tx=null;}
+  else if(G.tx!=null){const k=1-Math.exp(-dt*16);G.px+=(G.tx-G.px)*k;G.py+=(G.ty-G.py)*k;}
+  G.px=Math.max(24,Math.min(W-24,G.px));G.py=Math.max(H*.35,Math.min(H-70,G.py));
+  if(G.inv>0)G.inv-=dt;if(G.flash>0)G.flash-=dt;
+  // fire
+  G.fireT-=dt;if(G.fireT<=0){fire();G.fireT=WEAP[G.lv].rate;}
+  if(WEAP[G.lv].homing){G.missT-=dt;if(G.missT<=0){fireHoming();G.missT=WEAP[G.lv].homing;}}
+  // spawn
+  if(!G.boss){G.spawnT-=dt;if(G.spawnT<=0){spawnEnemy();G.spawnT=Math.max(.32,1.15-G.t*.006)*(.7+Math.random()*.6);}}
+  // bullets
+  for(const b of G.bullets){
+    if(b.homing){b.life-=dt;let tg=null,bd=1e9;const cands=G.boss?[G.boss,...G.enemies]:G.enemies;
+      for(const e of cands){const d=(e.x-b.x)**2+(e.y-b.y)**2;if(d<bd&&e.y>-20){bd=d;tg=e;}}
+      if(tg){const a=Math.atan2(tg.y-b.y,tg.x-b.x);b.vx+=Math.cos(a)*1400*dt;b.vy+=Math.sin(a)*1400*dt;}
+      const s=Math.hypot(b.vx,b.vy),mxs=520;if(s>mxs){b.vx*=mxs/s;b.vy*=mxs/s;}
+      if(b.life<=0)b.dead=true;
+      if(Math.random()<.6)G.parts.push({x:b.x,y:b.y,vx:0,vy:0,l:.25,c:'#FFC83D'});}
+    b.x+=b.vx*dt;b.y+=b.vy*dt;if(b.y<-20||b.x<-20||b.x>W+20||b.y>H+20)b.dead=true;}
+  // enemies
+  for(const e of G.enemies){e.y+=e.vy*dt;e.x+=e.vx*dt;e.rot+=dt*(e.type==='n2o'?3:1.2);if(e.x<e.r||e.x>W-e.r)e.vx*=-1;if(e.hit>0)e.hit-=dt;
+    if(e.type==='ch4'&&e.y>40&&e.y<H*.6){e.shootT-=dt;if(e.shootT<=0){e.shootT=2.6+Math.random()*2;const a=Math.atan2(G.py-e.y,G.px-e.x);G.ebullets.push({x:e.x,y:e.y,vx:Math.cos(a)*200,vy:Math.sin(a)*200,t:0});}}
+    for(const b of G.bullets){if(b.dead)continue;if((b.x-e.x)**2+(b.y-e.y)**2<(e.r+b.r)**2){b.dead=true;e.hp-=b.dmg;e.hit=.08;
+      if(e.hp<=0){e.dead=true;G.score+=e.score;G.kills++;boom(e.x,e.y,e.type==='ch4'?'#9BE7B0':'#C9D3D8',16);break;}}}
+    if(!e.dead&&(e.x-G.px)**2+(e.y-G.py)**2<(e.r+14)**2){e.dead=true;boom(e.x,e.y,'#C9D3D8',12);hurt();}
+    if(!e.dead&&e.y>H-40){e.dead=true;const dT=e.type==='ch4'?.3:.15;G.temp+=dT;G.flash=.25;floatText(e.x,H-60,`+${dT.toFixed(2)} °C`,'#FF5A3C');
+      if(G.temp>=2)gameOver('지구 기온이 +2.0 °C를 넘었습니다');}}
+  // boss
+  if(G.boss){const B=G.boss;B.t+=dt;B.y+=(B.ty-B.y)*Math.min(1,dt*1.5);B.x=W/2+Math.sin(B.t*.8)*(W/2-80);if(B.hit>0)B.hit-=dt;
+    B.shootT-=dt;if(B.shootT<=0&&B.y>60){B.shootT=Math.max(.45,1.1-G.quizN*.06);for(let i=-2;i<=2;i++){const a=Math.PI/2+i*.22;G.ebullets.push({x:B.x,y:B.y+40,vx:Math.cos(a)*190,vy:Math.sin(a)*190,t:0});}}
+    for(const b of G.bullets){if(b.dead)continue;if((b.x-B.x)**2+(b.y-B.y)**2<(B.r+b.r)**2){b.dead=true;B.hp-=b.dmg;B.hit=.06;if(Math.random()<.3)boom(b.x,b.y,'#FFC83D',2);}}
+    if(B.hp<=0){G.score+=3000;boom(B.x,B.y,'#FF5A3C',60);boom(B.x,B.y,'#FFC83D',40);floatText(B.x,B.y,'+3000','#FFC83D',26);G.boss=null;G.temp=Math.max(0,G.temp-.3);floatText(W/2,H/2+40,'기온 −0.3 °C 회복','#3DDC97',18);}}
+  // enemy bullets (적외선)
+  for(const b of G.ebullets){b.x+=b.vx*dt;b.y+=b.vy*dt;b.t+=dt;if(b.y>H+20||b.x<-20||b.x>W+20||b.y<-30)b.dead=true;
+    if((b.x-G.px)**2+(b.y-G.py)**2<15**2){b.dead=true;hurt();}}
+  for(const p of G.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.96;p.vy*=.96;p.l-=dt;}
+  for(const t of G.texts){t.y-=30*dt;t.l-=dt;}
+  G.bullets=G.bullets.filter(b=>!b.dead);G.enemies=G.enemies.filter(e=>!e.dead);G.ebullets=G.ebullets.filter(b=>!b.dead);
+  G.parts=G.parts.filter(p=>p.l>0);G.texts=G.texts.filter(t=>t.l>0);
+  for(const s of stars){s.y+=s.v*dt;if(s.y>H){s.y=0;s.x=Math.random()*W;}}
+  // quiz trigger
+  if(mode==='play'&&G.kills>=G.nextQuiz&&!G.boss){openQuiz();}
+}
+
+/* ---------- Draw ---------- */
+function drawMolecule(e){ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.rot);const f=e.hit>0;
+  ctx.shadowColor='rgba(255,255,255,.25)';ctx.shadowBlur=8;
+  if(e.type==='co2'){ctx.fillStyle=f?'#fff':'#D5DEE3';ctx.beginPath();ctx.arc(-13,0,7,0,7);ctx.arc(13,0,7,0,7);ctx.fill();ctx.fillStyle=f?'#fff':'#3B4952';ctx.beginPath();ctx.arc(0,0,9,0,7);ctx.fill();}
+  else if(e.type==='ch4'){ctx.fillStyle=f?'#fff':'#B9F0C9';for(let i=0;i<4;i++){const a=i*Math.PI/2+.4;ctx.beginPath();ctx.arc(Math.cos(a)*15,Math.sin(a)*15,6,0,7);ctx.fill();}ctx.fillStyle=f?'#fff':'#2E5E43';ctx.beginPath();ctx.arc(0,0,10,0,7);ctx.fill();}
+  else{ctx.fillStyle=f?'#fff':'#8EC9FF';ctx.beginPath();ctx.arc(-9,0,6,0,7);ctx.arc(2,0,6,0,7);ctx.fill();ctx.fillStyle=f?'#fff':'#F5C451';ctx.beginPath();ctx.arc(12,0,6.5,0,7);ctx.fill();}
+  ctx.restore();
+  if(e.hp<e.maxhp){ctx.fillStyle='#ffffff30';ctx.fillRect(e.x-14,e.y-e.r-9,28,3);ctx.fillStyle='#FF5A3C';ctx.fillRect(e.x-14,e.y-e.r-9,28*Math.max(0,e.hp/e.maxhp),3);}
+  ctx.fillStyle='#ffffffb0';ctx.font='600 10px "IBM Plex Mono",monospace';ctx.textAlign='center';ctx.fillText(e.type==='co2'?'CO₂':e.type==='ch4'?'CH₄':'N₂O',e.x,e.y+e.r+12);}
+function drawBoss(B){ctx.save();ctx.translate(B.x,B.y);const f=B.hit>0;
+  ctx.fillStyle=f?'#ffffff':'#55606A';for(const [x,y,r] of [[-40,6,30],[-12,-14,36],[22,-6,34],[46,10,26],[0,16,34]]){ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+  ctx.fillStyle='#FF5A3C';ctx.beginPath();ctx.arc(-16,4,6,0,7);ctx.arc(16,4,6,0,7);ctx.fill();ctx.restore();
+  ctx.fillStyle='#ffffff25';ctx.fillRect(60,16,W-120,8);ctx.fillStyle='#FF5A3C';ctx.fillRect(60,16,(W-120)*Math.max(0,B.hp/B.maxhp),8);
+  ctx.fillStyle='#E8EEF5';ctx.font='12px "IBM Plex Sans KR",sans-serif';ctx.textAlign='center';ctx.fillText('거대 온실 기체 구름',W/2,40);}
+function drawPlane(){if(G.inv>0&&Math.floor(G.inv*12)%2)return;ctx.save();ctx.translate(G.px,G.py);
+  ctx.fillStyle='#FFC83D';ctx.beginPath();ctx.moveTo(0,-26);ctx.lineTo(6,-8);ctx.lineTo(24,6);ctx.lineTo(24,12);ctx.lineTo(6,8);ctx.lineTo(4,18);ctx.lineTo(10,24);ctx.lineTo(-10,24);ctx.lineTo(-4,18);ctx.lineTo(-6,8);ctx.lineTo(-24,12);ctx.lineTo(-24,6);ctx.lineTo(-6,-8);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#62D2FF';ctx.beginPath();ctx.ellipse(0,-8,3.5,7,0,0,7);ctx.fill();
+  ctx.fillStyle=`rgba(255,140,60,${.6+Math.random()*.4})`;ctx.beginPath();ctx.moveTo(-4,25);ctx.lineTo(0,34+Math.random()*8);ctx.lineTo(4,25);ctx.fill();ctx.restore();}
+function draw(){
+  ctx.fillStyle='#070D18';ctx.fillRect(0,0,W,H);
+  for(const s of stars){ctx.fillStyle=`rgba(255,255,255,${.25+s.s*.3})`;ctx.fillRect(s.x,s.y,s.s,s.s);}
+  if(!G)return;
+  // earth + atmosphere at bottom, glow by temp
+  const heat=Math.min(1,G.temp/2);
+  const ag=ctx.createLinearGradient(0,H-90,0,H);ag.addColorStop(0,'rgba(98,210,255,0)');ag.addColorStop(1,`rgba(${Math.round(98+157*heat)},${Math.round(210-120*heat)},${Math.round(255-195*heat)},.45)`);
+  ctx.fillStyle=ag;ctx.fillRect(0,H-90,W,90);
+  ctx.fillStyle='#2F6A3E';ctx.beginPath();ctx.ellipse(W/2,H+340,520,370,0,0,7);ctx.fill();
+  ctx.fillStyle='#2A5F8F';ctx.beginPath();ctx.ellipse(W*.2,H+20,90,22,0,0,7);ctx.ellipse(W*.75,H+14,110,20,0,0,7);ctx.fill();
+  for(const e of G.enemies)drawMolecule(e);
+  if(G.boss)drawBoss(G.boss);
+  for(const b of G.bullets){if(b.homing){ctx.fillStyle='#FFE08A';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();}
+    else{ctx.fillStyle=G.lv>=4?'#FFE08A':'#62D2FF';ctx.fillRect(b.x-b.r/2,b.y-10,b.r,16);}}
+  ctx.strokeStyle='#FF5A3C';ctx.lineWidth=2.5;
+  for(const b of G.ebullets){const s=Math.hypot(b.vx,b.vy),ux=b.vx/s,uy=b.vy/s;ctx.beginPath();for(let i=0;i<=10;i++){const d=-i*1.6,w=Math.sin(i*1.1+b.t*18)*3.5;const x=b.x+ux*d-uy*w,y=b.y+uy*d+ux*w;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
+  drawPlane();
+  for(const p of G.parts){ctx.globalAlpha=Math.max(0,p.l*1.6);ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
+  ctx.textAlign='center';for(const t of G.texts){ctx.globalAlpha=Math.min(1,t.l);ctx.fillStyle=t.c;ctx.font=`700 ${t.size}px "IBM Plex Sans KR",sans-serif`;ctx.fillText(t.t,t.x,t.y);}ctx.globalAlpha=1;
+  if(G.flash>0){ctx.fillStyle=`rgba(255,90,60,${G.flash*.5})`;ctx.fillRect(0,0,W,H);}
+  // HUD
+  ctx.textAlign='left';ctx.fillStyle='#E8EEF5';ctx.font='600 18px "IBM Plex Mono",monospace';ctx.fillText(G.score.toLocaleString(),14,G.boss?66:30);
+  ctx.font='14px sans-serif';ctx.fillStyle='#FF5A3C';ctx.fillText('♥'.repeat(Math.max(0,G.lives))+'♡'.repeat(Math.max(0,3-G.lives)),14,G.boss?86:50);
+  ctx.fillStyle='#FFC83D';ctx.font='600 13px "IBM Plex Mono",monospace';ctx.fillText('MISSILE Lv.'+G.lv,14,G.boss?106:70);
+  // temp gauge (right)
+  const gx=W-26,gy=G.boss?70:76,gh=180;ctx.fillStyle='#ffffff18';ctx.fillRect(gx,gy,10,gh);
+  const tc=G.temp<1?'#FFC83D':'#FF5A3C';ctx.fillStyle=tc;ctx.fillRect(gx,gy+gh*(1-Math.min(1,G.temp/2)),10,gh*Math.min(1,G.temp/2));
+  ctx.strokeStyle='#ffffff40';ctx.lineWidth=1;ctx.strokeRect(gx+.5,gy+.5,9,gh-1);
+  ctx.textAlign='right';ctx.fillStyle='#E8EEF5';ctx.font='600 12px "IBM Plex Mono",monospace';ctx.fillText('+'+G.temp.toFixed(2)+'°C',W-8,gy+gh+18);
+  ctx.fillStyle='#8FA2B6';ctx.font='11px "IBM Plex Sans KR",sans-serif';ctx.fillText('지구 기온',W-8,gy-8);
+  if(!G.boss&&mode==='play'){const left=Math.max(0,G.nextQuiz-G.kills);ctx.textAlign='center';ctx.fillStyle='#8FA2B6';ctx.font='12px "IBM Plex Sans KR",sans-serif';ctx.fillText(`다음 문제까지 ${left}개`,W/2,24);}
+}
+
+/* ---------- Loop ---------- */
+let last=0;
+function loop(now){const dt=Math.min(.033,(now-last)/1000||0);last=now;
+  if(mode==='play')update(dt);else if(mode==='title'){for(const s of stars){s.y+=s.v*dt;if(s.y>H){s.y=0;s.x=Math.random()*W;}}}
+  draw();requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+
+/* ---------- Quiz ---------- */
+let qState=null,qTimer=0,qRAF=0;const QTIME=20;
+function openQuiz(){mode='quiz';G.quizN++;$('pauseBtn').hidden=true;
+  if(G.qi>=G.order.length){G.order.sort(()=>Math.random()-.5);G.qi=0;}
+  const q=QS[G.order[G.qi++]];const opts=q.c.map((t,i)=>({t,ok:i===0})).sort(()=>Math.random()-.5);
+  qState={q,opts,done:false};
+  $('qNum').textContent='문제 '+G.quizN;$('qLv').textContent=G.lv;$('qText').textContent=q.q;
+  $('qChoices').innerHTML=opts.map((o,i)=>`<button class="choice" data-i="${i}"><span class="k">${i+1}</span><span>${o.t}</span></button>`).join('');
+  $('qChoices').querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>answer(+b.dataset.i)));
+  $('qFb').hidden=true;$('qGo').hidden=true;renderLvl();$('quizOv').hidden=false;
+  qTimer=QTIME;const t0=performance.now();cancelAnimationFrame(qRAF);
+  (function tick(now){if(qState.done)return;const left=QTIME-(now-t0)/1000;$('qBar').style.width=Math.max(0,left/QTIME*100)+'%';if(left<=0){answer(-1);return;}qRAF=requestAnimationFrame(tick);})(t0);
+  setTimeout(()=>{const f=$('qChoices').querySelector('.choice');if(f)f.focus();},50);}
+function renderLvl(){$('qLvl').innerHTML=[1,2,3,4,5,6,7].map(i=>`<i class="${i<=G.lv?'on':''}"></i>`).join('');}
+function answer(i){if(!qState||qState.done)return;qState.done=true;cancelAnimationFrame(qRAF);
+  const btns=$('qChoices').querySelectorAll('.choice');btns.forEach((b,j)=>{b.disabled=true;if(qState.opts[j].ok)b.classList.add('right');else if(j===i)b.classList.add('wrong');});
+  const ok=i>=0&&qState.opts[i].ok;const fb=$('qFb');fb.hidden=false;
+  if(ok){G.right++;const up=G.lv<7;if(up)G.lv++;else{G.lives=Math.min(3,G.lives+1);}
+    fb.className='feedback ok';fb.innerHTML=`<b>정답! ${up?`미사일 Lv.${G.lv}로 강화!`:'최대 레벨이라 목숨 +1'}</b>${qState.q.e}`;}
+  else{G.wrongList.push(qState.q);fb.className='feedback no';fb.innerHTML=`<b>${i<0?'시간 초과!':'아쉬워요!'} 정답: ${qState.q.c[0]}</b>${qState.q.e}`;}
+  $('qLv').textContent=G.lv;renderLvl();
+  $('qGo').hidden=false;$('qGo').focus();}
+$('qGo').addEventListener('click',()=>{$('quizOv').hidden=true;
+  G.nextQuiz=G.kills+8+Math.min(10,G.quizN*2);
+  if(G.quizN%4===0)spawnBoss();
+  G.inv=1.2;mode='play';$('pauseBtn').hidden=false;last=performance.now();});
+
+/* ---------- Flow ---------- */
+function start(){newGame();mode='play';['titleOv','overOv','pauseOv','quizOv','boardOv'].forEach(id=>$(id).hidden=true);$('pauseBtn').hidden=false;last=performance.now();
+  floatText(W/2,H/2,'지구를 지켜라!','#FFC83D',28);}
+function gameOver(why){if(mode==='over')return;mode='over';$('pauseBtn').hidden=true;
+  const prevBest=myEntry().best||0;const isBest=G.score>prevBest&&G.score>0;
+  $('overWhy').textContent=why;$('overTitle').textContent=isBest?'개인 최고 기록!':'게임 종료';
+  $('gainTxt').textContent=G.score.toLocaleString();
+  saveScore(G.score,G.right,G.quizN).then(renderOverMe);renderOverMe();
+  $('sScore').textContent=G.score.toLocaleString();$('sQuiz').textContent=`${G.right}/${G.quizN}`;$('sLv').textContent=G.lv;
+  $('review').innerHTML=G.wrongList.length?'<div class="eyebrow" style="text-align:center">오답 노트</div>'+G.wrongList.map(q=>`<div class="item">${q.q}<br><b>정답: ${q.c[0]}</b><br>${q.e}</div>`).join(''):(G.quizN?'<p style="text-align:center">틀린 문제가 없어요. 완벽해요!</p>':'');
+  setTimeout(()=>{$('overOv').hidden=false;$('againBtn').focus();},700);}
+$('startBtn').addEventListener('click',start);
+$('againBtn').addEventListener('click',start);
+function pause(){if(mode!=='play')return;mode='paused';$('pauseOv').hidden=false;$('pauseBtn').hidden=true;}
+function resume(){if(mode!=='paused')return;mode='play';$('pauseOv').hidden=true;$('pauseBtn').hidden=false;last=performance.now();}
+$('pauseBtn').addEventListener('click',pause);$('resumeBtn').addEventListener('click',resume);
+$('quitBtn').addEventListener('click',()=>{mode='title';G=null;$('pauseOv').hidden=true;$('titleOv').hidden=false;renderMe();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+
+/* ---------- Login · 누적 점수 · 반 순위 ---------- */
+let db=null,dbReady=false,canWrite=true,board=[],boardErr='';
+function myEntry(){if(!ME)return{};if(db){const r=board.find(b=>b.sid===ME.sid);if(r)return r;}
+  return lsGet('ghshoot-me:'+ME.sid,{sid:ME.sid,name:ME.name,total:0,best:0,plays:0});}
+function myRank(){if(!db||!ME)return 0;const i=board.findIndex(b=>b.sid===ME.sid);return i<0?0:i+1;}
+function renderMe(){if(!ME)return;const m=myEntry();$('meWho').innerHTML=`<b>${esc(ME.sid)}</b>${esc(ME.name)}`;
+  $('meTotal').textContent=(m.best||0).toLocaleString();const r=myRank();$('meRank').textContent=r?`· 1학년 ${r}위`:'';}
+function renderOverMe(){const m=myEntry();$('overTotal').textContent=(m.best||0).toLocaleString();const r=myRank();$('overRank').textContent=r?`· 1학년 ${r}위`:'';
+  $('saveNote').textContent=!db?'1학년 순위표에 연결되지 않아 이 기기에만 저장했어요.':(!canWrite?'이 계정은 보기 권한만 있어서 1학년 순위표에 점수를 올리지 못했어요. 선생님께 알려 주세요.':'');}
+function renderBoard(){const L=$('boardList');
+  if(!db){$('boardNote').textContent=dbReady?'이 화면에서는 1학년 순위표를 불러올 수 없어요. claude.ai에 로그인한 상태로 선생님이 공유한 링크를 열어 주세요.':'순위표를 불러오는 중…';L.innerHTML='';return;}
+  $('boardNote').textContent=boardErr||(board.length?`${board.length}명 참여 · 실시간으로 바뀌어요`:'아직 기록이 없어요. 첫 번째 주인공이 되어 보세요!');
+  const row=(b,i)=>`<li class="${ME&&b.sid===ME.sid?'mine':''}"><span class="r">${i+1}</span><span class="n"><small>${esc(b.sid)}</small>${esc(b.name)}</span><span class="s">${(b.best||0).toLocaleString()}<small>${b.plays||0}판 도전</small></span></li>`;
+  const mi=ME?board.findIndex(b=>b.sid===ME.sid):-1;
+  L.innerHTML=board.slice(0,50).map(row).join('')+(mi>=50?'<li style="justify-content:center;display:block;text-align:center;color:var(--muted)">⋮</li>'+row(board[mi],mi):'');}
+async function initDb(){
+  try{db=window.claude&&window.claude.use?await window.claude.use('db'):null;}catch(e){db=null;}
+  try{const user=window.claude&&window.claude.use?await window.claude.use('user'):null;if(user){const c=await user.can('data.write');if(c===false)canWrite=false;}}catch(e){}
+  dbReady=true;
+  if(db){db.collection('scores').orderBy('best','desc').limit(1000).onSnapshot(snap=>{
+      board=snap.docs.map(d=>d.data()).filter(b=>b&&b.sid);boardErr='';renderBoard();renderMe();if(mode==='over')renderOverMe();},
+    err=>{boardErr='순위표 연결이 끊겼어요. 페이지를 새로 고쳐 주세요.';renderBoard();});}
+  renderBoard();renderMe();}
+async function saveScore(score,right,asked){if(!ME)return;
+  const loc=lsGet('ghshoot-me:'+ME.sid,{sid:ME.sid,name:ME.name,total:0,best:0,plays:0,right:0,asked:0});
+  const nl={sid:ME.sid,name:ME.name,total:(loc.total||0)+score,best:Math.max(loc.best||0,score),plays:(loc.plays||0)+1,right:(loc.right||0)+right,asked:(loc.asked||0)+asked};
+  lsSet('ghshoot-me:'+ME.sid,nl);
+  if(!db||!canWrite)return;
+  const ref=db.collection('scores').doc(ME.sid);
+  for(let tries=0;tries<2;tries++){try{
+      const cur=await ref.get();const o=cur.exists?cur.data():{};
+      await ref.set({sid:ME.sid,name:ME.name,total:(o.total||0)+score,best:Math.max(o.best||0,score),plays:(o.plays||0)+1,right:(o.right||0)+right,asked:(o.asked||0)+asked,updatedAt:Date.now()});
+      return;}catch(e){if(e&&e.code==='invalid_argument'){canWrite=false;return;}if(e&&e.code==='unavailable'&&tries===0){await new Promise(r=>setTimeout(r,400+Math.random()*600));continue;}
+      boardErr=e&&e.code==='quota_exceeded'?'순위표 저장 공간이 가득 찼어요. 선생님께 알려 주세요.':'점수를 순위표에 올리지 못했어요.';return;}}}
+function openBoard(from){boardFrom=from;['titleOv','overOv'].forEach(id=>$(id).hidden=true);renderBoard();$('boardOv').hidden=false;}
+let boardFrom='titleOv';
+$('boardBtn').addEventListener('click',()=>openBoard('titleOv'));
+$('overBoardBtn').addEventListener('click',()=>openBoard('overOv'));
+$('boardClose').addEventListener('click',()=>{$('boardOv').hidden=true;$(boardFrom).hidden=false;});
+$('homeBtn').addEventListener('click',()=>{mode='title';G=null;$('overOv').hidden=true;$('titleOv').hidden=false;renderMe();});
+$('switchBtn').addEventListener('click',()=>{ME=null;$('titleOv').hidden=true;$('loginOv').hidden=false;$('lerr').textContent='';$('lsid').value='';$('lname').value='';$('lsid').focus();});
+(function(){const last=lsGet('ghshoot-last',null);if(last){$('lsid').value=last.sid||'';$('lname').value=last.name||'';}})();
+$('loginForm').addEventListener('submit',e=>{e.preventDefault();const sid=$('lsid').value.trim(),name=$('lname').value.trim(),er=$('lerr');
+  if(!sid){er.textContent='학번을 입력하세요.';$('lsid').focus();return;}
+  if(!/^[0-9]{3,10}$/.test(sid)){er.textContent='학번은 숫자로만 입력하세요.';$('lsid').focus();return;}
+  if(!name){er.textContent='이름을 입력하세요.';$('lname').focus();return;}
+  ME={sid,name:name.slice(0,20)};lsSet('ghshoot-last',ME);$('loginOv').hidden=true;$('titleOv').hidden=false;renderMe();$('startBtn').focus();});
+initDb();
+
+/* ---------- Input ---------- */
+window.addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;keys[e.key]=true;
+  if(mode==='quiz'&&qState&&!qState.done&&/^[1-4]$/.test(e.key)){answer(+e.key-1);}
+  if(e.key==='Escape'||e.key==='p'){mode==='play'?pause():resume();}
+  if(e.key.startsWith('Arrow')&&mode==='play')e.preventDefault();});
+window.addEventListener('keyup',e=>{keys[e.key]=false;});
+function toGame(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};}
+let drag=null;
+cv.addEventListener('pointerdown',e=>{if(mode!=='play')return;const p=toGame(e);drag={sx:p.x,sy:p.y,px:G.px,py:G.py};try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+cv.addEventListener('pointermove',e=>{if(mode!=='play')return;const p=toGame(e);
+  if(drag){G.tx=drag.px+(p.x-drag.sx)*1.3;G.ty=drag.py+(p.y-drag.sy)*1.3;}
+  else if(e.pointerType==='mouse'){G.tx=p.x;G.ty=p.y-30;}});
+cv.addEventListener('pointerup',()=>{drag=null;});cv.addEventListener('pointercancel',()=>{drag=null;});
+})();
+</script>
+
+</body></html>
