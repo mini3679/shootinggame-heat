@@ -1,6 +1,9 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>온실 기체 슈팅</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@600&display=swap">
 <style>
@@ -91,7 +94,8 @@ button{font:inherit;color:inherit}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-
+</head>
+<body>
 <div id="stage">
   <canvas id="game" width="480" height="720" aria-label="온실 기체 슈팅 게임 화면"></canvas>
   <button id="pauseBtn" hidden aria-label="일시 정지">❚❚</button>
@@ -405,54 +409,54 @@ $('pauseBtn').addEventListener('click',pause);$('resumeBtn').addEventListener('c
 $('quitBtn').addEventListener('click',()=>{mode='title';G=null;$('pauseOv').hidden=true;$('titleOv').hidden=false;renderMe();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
 
-/* ---------- Login · 누적 점수 · 반 순위 ---------- */
-let db=null,dbReady=false,canWrite=true,board=[],boardErr='';
-function myEntry(){if(!ME)return{};if(db){const r=board.find(b=>b.sid===ME.sid);if(r)return r;}
-  return lsGet('ghshoot-me:'+ME.sid,{sid:ME.sid,name:ME.name,total:0,best:0,plays:0});}
-function myRank(){if(!db||!ME)return 0;const i=board.findIndex(b=>b.sid===ME.sid);return i<0?0:i+1;}
+/* ---------- Login · 최고 점수 · 1학년 순위 (구글 스프레드시트 연동) ---------- */
+// ▼▼ 구글 Apps Script 웹 앱 주소를 따옴표 안에 붙여 넣으세요 (https://script.google.com/macros/s/…/exec) ▼▼
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbzc3C8PbDP8Z4Byt_7dYxeW22YLIjrOVHta3ZaBIdruPODLyde9s2STEJo3QB_I0NDYJQ/exec';
+// ▲▲ 여기까지만 고치면 됩니다 ▲▲
+const online=/^https:\/\/script\.google\.com\/.+\/exec$/.test(SCRIPT_URL.trim());
+let board=[],boardLoaded=false,boardErr='',saveErr='',loading=false;
+function myEntry(){if(!ME)return{};const r=board.find(b=>b.sid===ME.sid);const loc=lsGet('ghshoot-me:'+ME.sid,{sid:ME.sid,name:ME.name,total:0,best:0,plays:0});
+  if(r)return{...loc,best:Math.max(r.best||0,loc.best||0),plays:r.plays};return loc;}
+function myRank(){if(!boardLoaded||!ME)return 0;const i=board.findIndex(b=>b.sid===ME.sid);return i<0?0:i+1;}
 function renderMe(){if(!ME)return;const m=myEntry();$('meWho').innerHTML=`<b>${esc(ME.sid)}</b>${esc(ME.name)}`;
   $('meTotal').textContent=(m.best||0).toLocaleString();const r=myRank();$('meRank').textContent=r?`· 1학년 ${r}위`:'';}
 function renderOverMe(){const m=myEntry();$('overTotal').textContent=(m.best||0).toLocaleString();const r=myRank();$('overRank').textContent=r?`· 1학년 ${r}위`:'';
-  $('saveNote').textContent=!db?'1학년 순위표에 연결되지 않아 이 기기에만 저장했어요.':(!canWrite?'이 계정은 보기 권한만 있어서 1학년 순위표에 점수를 올리지 못했어요. 선생님께 알려 주세요.':'');}
+  $('saveNote').textContent=!online?'순위표 주소가 아직 설정되지 않아 이 기기에만 저장했어요.':(saveErr||'');}
 function renderBoard(){const L=$('boardList');
-  if(!db){$('boardNote').textContent=dbReady?'이 화면에서는 1학년 순위표를 불러올 수 없어요. claude.ai에 로그인한 상태로 선생님이 공유한 링크를 열어 주세요.':'순위표를 불러오는 중…';L.innerHTML='';return;}
-  $('boardNote').textContent=boardErr||(board.length?`${board.length}명 참여 · 실시간으로 바뀌어요`:'아직 기록이 없어요. 첫 번째 주인공이 되어 보세요!');
+  if(!online){$('boardNote').textContent='선생님이 아직 순위표를 연결하지 않았어요.';L.innerHTML='';return;}
+  if(!boardLoaded){$('boardNote').textContent=boardErr||'순위표를 불러오는 중…';L.innerHTML='';return;}
+  $('boardNote').textContent=boardErr||(board.length?`${board.length}명 참여 · 최고 점수 순`:'아직 기록이 없어요. 첫 번째 주인공이 되어 보세요!');
   const row=(b,i)=>`<li class="${ME&&b.sid===ME.sid?'mine':''}"><span class="r">${i+1}</span><span class="n"><small>${esc(b.sid)}</small>${esc(b.name)}</span><span class="s">${(b.best||0).toLocaleString()}<small>${b.plays||0}판 도전</small></span></li>`;
   const mi=ME?board.findIndex(b=>b.sid===ME.sid):-1;
-  L.innerHTML=board.slice(0,50).map(row).join('')+(mi>=50?'<li style="justify-content:center;display:block;text-align:center;color:var(--muted)">⋮</li>'+row(board[mi],mi):'');}
-async function initDb(){
-  try{db=window.claude&&window.claude.use?await window.claude.use('db'):null;}catch(e){db=null;}
-  try{const user=window.claude&&window.claude.use?await window.claude.use('user'):null;if(user){const c=await user.can('data.write');if(c===false)canWrite=false;}}catch(e){}
-  dbReady=true;
-  if(db){db.collection('scores').orderBy('best','desc').limit(1000).onSnapshot(snap=>{
-      board=snap.docs.map(d=>d.data()).filter(b=>b&&b.sid);boardErr='';renderBoard();renderMe();if(mode==='over')renderOverMe();},
-    err=>{boardErr='순위표 연결이 끊겼어요. 페이지를 새로 고쳐 주세요.';renderBoard();});}
-  renderBoard();renderMe();}
-async function saveScore(score,right,asked){if(!ME)return;
+  L.innerHTML=board.slice(0,50).map(row).join('')+(mi>=50?'<li style="display:block;text-align:center;color:var(--muted)">⋮</li>'+row(board[mi],mi):'');}
+function setBoard(list){board=(Array.isArray(list)?list:[]).filter(b=>b&&b.sid).map(b=>({sid:String(b.sid),name:String(b.name||''),best:Number(b.best)||0,plays:Number(b.plays)||0}));
+  boardLoaded=true;boardErr='';renderBoard();renderMe();if(mode==='over')renderOverMe();}
+async function loadBoard(){if(!online||loading)return;loading=true;renderBoard();
+  try{const r=await fetch(SCRIPT_URL+'?action=board&t='+Date.now());const j=await r.json();if(j&&j.ok)setBoard(j.board);else boardErr='순위표를 불러오지 못했어요.';}
+  catch(e){boardErr='순위표를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.';}
+  loading=false;renderBoard();}
+async function saveScore(score,right,asked){if(!ME)return;saveErr='';
   const loc=lsGet('ghshoot-me:'+ME.sid,{sid:ME.sid,name:ME.name,total:0,best:0,plays:0,right:0,asked:0});
-  const nl={sid:ME.sid,name:ME.name,total:(loc.total||0)+score,best:Math.max(loc.best||0,score),plays:(loc.plays||0)+1,right:(loc.right||0)+right,asked:(loc.asked||0)+asked};
-  lsSet('ghshoot-me:'+ME.sid,nl);
-  if(!db||!canWrite)return;
-  const ref=db.collection('scores').doc(ME.sid);
+  lsSet('ghshoot-me:'+ME.sid,{sid:ME.sid,name:ME.name,total:(loc.total||0)+score,best:Math.max(loc.best||0,score),plays:(loc.plays||0)+1,right:(loc.right||0)+right,asked:(loc.asked||0)+asked});
+  if(!online)return;
   for(let tries=0;tries<2;tries++){try{
-      const cur=await ref.get();const o=cur.exists?cur.data():{};
-      await ref.set({sid:ME.sid,name:ME.name,total:(o.total||0)+score,best:Math.max(o.best||0,score),plays:(o.plays||0)+1,right:(o.right||0)+right,asked:(o.asked||0)+asked,updatedAt:Date.now()});
-      return;}catch(e){if(e&&e.code==='invalid_argument'){canWrite=false;return;}if(e&&e.code==='unavailable'&&tries===0){await new Promise(r=>setTimeout(r,400+Math.random()*600));continue;}
-      boardErr=e&&e.code==='quota_exceeded'?'순위표 저장 공간이 가득 찼어요. 선생님께 알려 주세요.':'점수를 순위표에 올리지 못했어요.';return;}}}
-function openBoard(from){boardFrom=from;['titleOv','overOv'].forEach(id=>$(id).hidden=true);renderBoard();$('boardOv').hidden=false;}
+      const r=await fetch(SCRIPT_URL,{method:'POST',body:JSON.stringify({sid:ME.sid,name:ME.name,score,right,asked})});
+      const j=await r.json();if(j&&j.ok){setBoard(j.board);return;}
+      saveErr='점수를 순위표에 올리지 못했어요. 선생님께 알려 주세요.';return;}
+    catch(e){if(tries===0){await new Promise(r=>setTimeout(r,800));continue;}saveErr='인터넷 연결 문제로 점수를 순위표에 올리지 못했어요.';}}}
+function openBoard(from){boardFrom=from;['titleOv','overOv'].forEach(id=>$(id).hidden=true);renderBoard();$('boardOv').hidden=false;loadBoard();}
 let boardFrom='titleOv';
 $('boardBtn').addEventListener('click',()=>openBoard('titleOv'));
 $('overBoardBtn').addEventListener('click',()=>openBoard('overOv'));
 $('boardClose').addEventListener('click',()=>{$('boardOv').hidden=true;$(boardFrom).hidden=false;});
-$('homeBtn').addEventListener('click',()=>{mode='title';G=null;$('overOv').hidden=true;$('titleOv').hidden=false;renderMe();});
+$('homeBtn').addEventListener('click',()=>{mode='title';G=null;$('overOv').hidden=true;$('titleOv').hidden=false;renderMe();loadBoard();});
 $('switchBtn').addEventListener('click',()=>{ME=null;$('titleOv').hidden=true;$('loginOv').hidden=false;$('lerr').textContent='';$('lsid').value='';$('lname').value='';$('lsid').focus();});
 (function(){const last=lsGet('ghshoot-last',null);if(last){$('lsid').value=last.sid||'';$('lname').value=last.name||'';}})();
 $('loginForm').addEventListener('submit',e=>{e.preventDefault();const sid=$('lsid').value.trim(),name=$('lname').value.trim(),er=$('lerr');
   if(!sid){er.textContent='학번을 입력하세요.';$('lsid').focus();return;}
   if(!/^[0-9]{3,10}$/.test(sid)){er.textContent='학번은 숫자로만 입력하세요.';$('lsid').focus();return;}
   if(!name){er.textContent='이름을 입력하세요.';$('lname').focus();return;}
-  ME={sid,name:name.slice(0,20)};lsSet('ghshoot-last',ME);$('loginOv').hidden=true;$('titleOv').hidden=false;renderMe();$('startBtn').focus();});
-initDb();
+  ME={sid,name:name.slice(0,20)};lsSet('ghshoot-last',ME);$('loginOv').hidden=true;$('titleOv').hidden=false;renderMe();$('startBtn').focus();loadBoard();});
 
 /* ---------- Input ---------- */
 window.addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;keys[e.key]=true;
@@ -469,5 +473,5 @@ cv.addEventListener('pointermove',e=>{if(mode!=='play')return;const p=toGame(e);
 cv.addEventListener('pointerup',()=>{drag=null;});cv.addEventListener('pointercancel',()=>{drag=null;});
 })();
 </script>
-
-</body></html>
+</body>
+</html>
