@@ -119,6 +119,7 @@ button{font:inherit;color:inherit}
     <div class="howto">
       <div><span>✈︎</span><span>화면을 <b>끌거나</b> 마우스·방향키로 비행기를 움직여요. 미사일은 자동 발사!</span></div>
       <div><span>🌡</span><span>분자가 지구에 닿으면 기온이 올라요. <b>+2.0 °C</b>가 되거나 목숨 3개를 모두 잃으면 끝.</span></div>
+      <div><span>〰</span><span>분자들도 <b>빨간 적외선 미사일</b>을 쏴요. CO₂는 아래로, N₂O는 나를 노려서, CH₄는 세 갈래로! 맞으면 목숨이 줄어요.</span></div>
       <div><span>?</span><span>문제를 맞히면 <b>미사일 레벨 UP</b> (최대 Lv.7). 틀리면 해설을 보고 다음 기회를!</span></div>
     </div>
     <div class="me"><div class="who" id="meWho"></div><div class="tot">내 최고 <b id="meTotal">0</b>점 <span id="meRank"></span></div></div>
@@ -246,7 +247,7 @@ function spawnEnemy(){
   if(r<.18+d*.2) e={type:'ch4',hp:5+d*4,r:20,vy:55+d*30,score:150};
   else if(r<.3+d*.25) e={type:'n2o',hp:2,r:13,vy:120+d*60,score:120};
   else e={type:'co2',hp:2+d*2,r:16,vy:70+d*45,score:100};
-  e.maxhp=e.hp;e.x=30+Math.random()*(W-60);e.y=-30;e.vx=(Math.random()-.5)*(30+d*50);e.rot=Math.random()*6;e.hit=0;e.shootT=2+Math.random()*3;
+  e.maxhp=e.hp;e.x=30+Math.random()*(W-60);e.y=-30;e.vx=(Math.random()-.5)*(30+d*50);e.rot=Math.random()*6;e.hit=0;e.shootT=.8+Math.random()*1.6;
   G.enemies.push(e);}
 function spawnBoss(){const n=G.quizN;G.boss={x:W/2,y:-80,ty:120,hp:80+n*18,maxhp:80+n*18,t:0,shootT:1,hit:0,r:58};
   floatText(W/2,H/2,'거대 온실 기체 구름 출현!','#FF5A3C',26);}
@@ -282,7 +283,10 @@ function update(dt){
     b.x+=b.vx*dt;b.y+=b.vy*dt;if(b.y<-20||b.x<-20||b.x>W+20||b.y>H+20)b.dead=true;}
   // enemies
   for(const e of G.enemies){e.y+=e.vy*dt;e.x+=e.vx*dt;e.rot+=dt*(e.type==='n2o'?3:1.2);if(e.x<e.r||e.x>W-e.r)e.vx*=-1;if(e.hit>0)e.hit-=dt;
-    if(e.type==='ch4'&&e.y>40&&e.y<H*.6){e.shootT-=dt;if(e.shootT<=0){e.shootT=2.6+Math.random()*2;const a=Math.atan2(G.py-e.y,G.px-e.x);G.ebullets.push({x:e.x,y:e.y,vx:Math.cos(a)*200,vy:Math.sin(a)*200,t:0});}}
+    if(e.y>30&&e.y<H*.62&&G.ebullets.length<70){e.shootT-=dt;if(e.shootT<=0){const d=Math.min(1,G.t/150),sp=165+d*60,jit=()=>.8+Math.random()*.4,a=Math.atan2(G.py-e.y,G.px-e.x);
+      if(e.type==='co2'){e.shootT=(3.2-d*1.2)*jit();G.ebullets.push({x:e.x,y:e.y+e.r,vx:0,vy:sp,t:0});}
+      else if(e.type==='n2o'){e.shootT=(2.6-d)*jit();G.ebullets.push({x:e.x,y:e.y,vx:Math.cos(a)*(sp+50),vy:Math.sin(a)*(sp+50),t:0});}
+      else{e.shootT=(3-d)*jit();for(const k of [-.26,0,.26])G.ebullets.push({x:e.x,y:e.y,vx:Math.cos(a+k)*sp,vy:Math.sin(a+k)*sp,t:0});}}}
     for(const b of G.bullets){if(b.dead)continue;if((b.x-e.x)**2+(b.y-e.y)**2<(e.r+b.r)**2){b.dead=true;e.hp-=b.dmg;e.hit=.08;
       if(e.hp<=0){e.dead=true;G.score+=e.score;G.kills++;boom(e.x,e.y,e.type==='ch4'?'#9BE7B0':'#C9D3D8',16);break;}}}
     if(!e.dead&&(e.x-G.px)**2+(e.y-G.py)**2<(e.r+14)**2){e.dead=true;boom(e.x,e.y,'#C9D3D8',12);hurt();}
