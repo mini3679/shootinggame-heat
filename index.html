@@ -119,8 +119,8 @@ button{font:inherit;color:inherit}
     <div class="howto">
       <div><span>✈︎</span><span>화면을 <b>끌거나</b> 마우스·방향키로 비행기를 움직여요. 미사일은 자동 발사!</span></div>
       <div><span>🌡</span><span>분자가 지구에 닿으면 기온이 올라요. <b>+2.0 °C</b>가 되거나 목숨 3개를 모두 잃으면 끝.</span></div>
-      <div><span>〰</span><span>분자들도 <b>빨간 적외선 미사일</b>을 쏴요. CO₂는 아래로, N₂O는 나를 노려서, CH₄는 세 갈래로! 맞으면 목숨이 줄어요.</span></div>
-      <div><span>?</span><span>문제를 맞히면 <b>미사일 레벨 UP</b> (최대 Lv.7). 틀리면 해설을 보고 다음 기회를!</span></div>
+      <div><span>〰</span><span>분자들도 <b>빨간 적외선 미사일</b>을 쏴요. CO₂는 아래로, N₂O는 나를 노려서, CH₄는 세 갈래로! 맞으면 목숨 −1. 문제를 맞힐수록 <b>더 많이, 더 빠르게</b> 쏴요!</span></div>
+      <div><span>?</span><span>문제를 맞히면 <b>미사일 레벨 UP</b> (최대 Lv.7). 틀리거나 시간이 지나면 <b>한 단계 DOWN</b>.</span></div>
     </div>
     <div class="me"><div class="who" id="meWho"></div><div class="tot">내 최고 <b id="meTotal">0</b>점 <span id="meRank"></span></div></div>
     <button class="btn" id="startBtn">게임 시작</button>
@@ -247,7 +247,7 @@ function spawnEnemy(){
   if(r<.18+d*.2) e={type:'ch4',hp:5+d*4,r:20,vy:55+d*30,score:150};
   else if(r<.3+d*.25) e={type:'n2o',hp:2,r:13,vy:120+d*60,score:120};
   else e={type:'co2',hp:2+d*2,r:16,vy:70+d*45,score:100};
-  e.maxhp=e.hp;e.x=30+Math.random()*(W-60);e.y=-30;e.vx=(Math.random()-.5)*(30+d*50);e.rot=Math.random()*6;e.hit=0;e.shootT=.8+Math.random()*1.6;
+  e.hp*=1+threat()*.08;e.maxhp=e.hp;e.x=30+Math.random()*(W-60);e.y=-30;e.vx=(Math.random()-.5)*(30+d*50);e.rot=Math.random()*6;e.hit=0;e.shootT=.8+Math.random()*1.6;
   G.enemies.push(e);}
 function spawnBoss(){const n=G.quizN;G.boss={x:W/2,y:-80,ty:120,hp:80+n*18,maxhp:80+n*18,t:0,shootT:1,hit:0,r:58};
   floatText(W/2,H/2,'거대 온실 기체 구름 출현!','#FF5A3C',26);}
@@ -257,6 +257,7 @@ function boom(x,y,c,n){for(let i=0;i<n;i++){const a=Math.random()*6.283,s=Math.r
 function floatText(x,y,t,c,size){G.texts.push({x,y,t,c,size:size||16,l:1.6});}
 function hurt(){if(G.inv>0)return;G.lives--;G.inv=2;G.flash=.4;boom(G.px,G.py,'#62D2FF',30);if(G.lives<=0)gameOver('목숨을 모두 잃었습니다');}
 
+const threat=()=>G?Math.min(12,G.right):0;
 /* ---------- Update ---------- */
 function update(dt){
   G.t+=dt;
@@ -283,10 +284,11 @@ function update(dt){
     b.x+=b.vx*dt;b.y+=b.vy*dt;if(b.y<-20||b.x<-20||b.x>W+20||b.y>H+20)b.dead=true;}
   // enemies
   for(const e of G.enemies){e.y+=e.vy*dt;e.x+=e.vx*dt;e.rot+=dt*(e.type==='n2o'?3:1.2);if(e.x<e.r||e.x>W-e.r)e.vx*=-1;if(e.hit>0)e.hit-=dt;
-    if(e.y>30&&e.y<H*.62&&G.ebullets.length<70){e.shootT-=dt;if(e.shootT<=0){const d=Math.min(1,G.t/150),sp=165+d*60,jit=()=>.8+Math.random()*.4,a=Math.atan2(G.py-e.y,G.px-e.x);
-      if(e.type==='co2'){e.shootT=(3.2-d*1.2)*jit();G.ebullets.push({x:e.x,y:e.y+e.r,vx:0,vy:sp,t:0});}
-      else if(e.type==='n2o'){e.shootT=(2.6-d)*jit();G.ebullets.push({x:e.x,y:e.y,vx:Math.cos(a)*(sp+50),vy:Math.sin(a)*(sp+50),t:0});}
-      else{e.shootT=(3-d)*jit();for(const k of [-.26,0,.26])G.ebullets.push({x:e.x,y:e.y,vx:Math.cos(a+k)*sp,vy:Math.sin(a+k)*sp,t:0});}}}
+    const R=threat();if(e.y>30&&e.y<H*.62&&G.ebullets.length<70+R*10){e.shootT-=dt;if(e.shootT<=0){const d=Math.min(1,G.t/150),sp=165+d*60+R*14,f=1/(1+R*.13),jit=()=>.8+Math.random()*.4,a=Math.atan2(G.py-e.y,G.px-e.x);
+      const fan=(n,gap,s)=>{for(let i=0;i<n;i++){const k=(i-(n-1)/2)*gap;G.ebullets.push({x:e.x,y:e.y,vx:Math.cos(a+k)*s,vy:Math.sin(a+k)*s,t:0});}};
+      if(e.type==='co2'){e.shootT=(3.2-d*1.2)*f*jit();const n=1+Math.min(3,Math.floor(R/3));for(let i=0;i<n;i++){const k=(i-(n-1)/2)*.2;G.ebullets.push({x:e.x,y:e.y+e.r,vx:Math.sin(k)*sp,vy:Math.cos(k)*sp,t:0});}}
+      else if(e.type==='n2o'){e.shootT=(2.6-d)*f*jit();const n=1+Math.min(2,Math.floor(R/4));fan(n,.12,sp+50);}
+      else{e.shootT=(3-d)*f*jit();fan(3+2*Math.min(2,Math.floor(R/4)),.24,sp);}}}
     for(const b of G.bullets){if(b.dead)continue;if((b.x-e.x)**2+(b.y-e.y)**2<(e.r+b.r)**2){b.dead=true;e.hp-=b.dmg;e.hit=.08;
       if(e.hp<=0){e.dead=true;G.score+=e.score;G.kills++;boom(e.x,e.y,e.type==='ch4'?'#9BE7B0':'#C9D3D8',16);break;}}}
     if(!e.dead&&(e.x-G.px)**2+(e.y-G.py)**2<(e.r+14)**2){e.dead=true;boom(e.x,e.y,'#C9D3D8',12);hurt();}
@@ -294,7 +296,7 @@ function update(dt){
       if(G.temp>=2)gameOver('지구 기온이 +2.0 °C를 넘었습니다');}}
   // boss
   if(G.boss){const B=G.boss;B.t+=dt;B.y+=(B.ty-B.y)*Math.min(1,dt*1.5);B.x=W/2+Math.sin(B.t*.8)*(W/2-80);if(B.hit>0)B.hit-=dt;
-    B.shootT-=dt;if(B.shootT<=0&&B.y>60){B.shootT=Math.max(.45,1.1-G.quizN*.06);for(let i=-2;i<=2;i++){const a=Math.PI/2+i*.22;G.ebullets.push({x:B.x,y:B.y+40,vx:Math.cos(a)*190,vy:Math.sin(a)*190,t:0});}}
+    B.shootT-=dt;if(B.shootT<=0&&B.y>60){const R=threat(),m=2+Math.min(3,Math.floor(R/3));B.shootT=Math.max(.35,1.1-G.quizN*.06-R*.03);for(let i=-m;i<=m;i++){const a=Math.PI/2+i*.2,v=190+R*12;G.ebullets.push({x:B.x,y:B.y+40,vx:Math.cos(a)*v,vy:Math.sin(a)*v,t:0});}}
     for(const b of G.bullets){if(b.dead)continue;if((b.x-B.x)**2+(b.y-B.y)**2<(B.r+b.r)**2){b.dead=true;B.hp-=b.dmg;B.hit=.06;if(Math.random()<.3)boom(b.x,b.y,'#FFC83D',2);}}
     if(B.hp<=0){G.score+=3000;boom(B.x,B.y,'#FF5A3C',60);boom(B.x,B.y,'#FFC83D',40);floatText(B.x,B.y,'+3000','#FFC83D',26);G.boss=null;G.temp=Math.max(0,G.temp-.3);floatText(W/2,H/2+40,'기온 −0.3 °C 회복','#3DDC97',18);}}
   // enemy bullets (적외선)
@@ -341,7 +343,7 @@ function draw(){
   if(G.boss)drawBoss(G.boss);
   for(const b of G.bullets){if(b.homing){ctx.fillStyle='#FFE08A';ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,7);ctx.fill();}
     else{ctx.fillStyle=G.lv>=4?'#FFE08A':'#62D2FF';ctx.fillRect(b.x-b.r/2,b.y-10,b.r,16);}}
-  ctx.strokeStyle='#FF5A3C';ctx.lineWidth=2.5;
+  ctx.strokeStyle='#FF5A3C';ctx.lineWidth=2.5+Math.min(2,threat()*.18);
   for(const b of G.ebullets){const s=Math.hypot(b.vx,b.vy),ux=b.vx/s,uy=b.vy/s;ctx.beginPath();for(let i=0;i<=10;i++){const d=-i*1.6,w=Math.sin(i*1.1+b.t*18)*3.5;const x=b.x+ux*d-uy*w,y=b.y+uy*d+ux*w;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();}
   drawPlane();
   for(const p of G.parts){ctx.globalAlpha=Math.max(0,p.l*1.6);ctx.fillStyle=p.c;ctx.fillRect(p.x-2,p.y-2,4,4);}ctx.globalAlpha=1;
@@ -350,7 +352,7 @@ function draw(){
   // HUD
   ctx.textAlign='left';ctx.fillStyle='#E8EEF5';ctx.font='600 18px "IBM Plex Mono",monospace';ctx.fillText(G.score.toLocaleString(),14,G.boss?66:30);
   ctx.font='14px sans-serif';ctx.fillStyle='#FF5A3C';ctx.fillText('♥'.repeat(Math.max(0,G.lives))+'♡'.repeat(Math.max(0,3-G.lives)),14,G.boss?86:50);
-  ctx.fillStyle='#FFC83D';ctx.font='600 13px "IBM Plex Mono",monospace';ctx.fillText('MISSILE Lv.'+G.lv,14,G.boss?106:70);
+  ctx.fillStyle='#FFC83D';ctx.font='600 13px "IBM Plex Mono",monospace';ctx.fillText('MISSILE Lv.'+G.lv,14,G.boss?106:70);if(threat()){ctx.fillStyle='#FF8A5B';ctx.fillText('적 위협 Lv.'+threat(),14,G.boss?124:88);}
   // temp gauge (right)
   const gx=W-26,gy=G.boss?70:76,gh=180;ctx.fillStyle='#ffffff18';ctx.fillRect(gx,gy,10,gh);
   const tc=G.temp<1?'#FFC83D':'#FF5A3C';ctx.fillStyle=tc;ctx.fillRect(gx,gy+gh*(1-Math.min(1,G.temp/2)),10,gh*Math.min(1,G.temp/2));
@@ -385,8 +387,8 @@ function answer(i){if(!qState||qState.done)return;qState.done=true;cancelAnimati
   const btns=$('qChoices').querySelectorAll('.choice');btns.forEach((b,j)=>{b.disabled=true;if(qState.opts[j].ok)b.classList.add('right');else if(j===i)b.classList.add('wrong');});
   const ok=i>=0&&qState.opts[i].ok;const fb=$('qFb');fb.hidden=false;
   if(ok){G.right++;const up=G.lv<7;if(up)G.lv++;else{G.lives=Math.min(3,G.lives+1);}
-    fb.className='feedback ok';fb.innerHTML=`<b>정답! ${up?`미사일 Lv.${G.lv}로 강화!`:'최대 레벨이라 목숨 +1'}</b>${qState.q.e}`;}
-  else{G.wrongList.push(qState.q);fb.className='feedback no';fb.innerHTML=`<b>${i<0?'시간 초과!':'아쉬워요!'} 정답: ${qState.q.c[0]}</b>${qState.q.e}`;}
+    fb.className='feedback ok';fb.innerHTML=`<b>정답! ${up?`미사일 Lv.${G.lv}로 강화!`:'최대 레벨이라 목숨 +1'}</b><span style="display:block;color:#FFB4A0;margin:2px 0 6px">대신 온실 기체도 더 세졌어요! (적 위협 Lv.${threat()})</span>${qState.q.e}`;}
+  else{G.wrongList.push(qState.q);const down=G.lv>1;if(down)G.lv--;fb.className='feedback no';fb.innerHTML=`<b>${i<0?'시간 초과!':'아쉬워요!'} ${down?`미사일 Lv.${G.lv}로 약해졌어요`:'미사일은 Lv.1 그대로예요'}</b>정답: ${qState.q.c[0]}<br>${qState.q.e}`;}
   $('qLv').textContent=G.lv;renderLvl();
   $('qGo').hidden=false;$('qGo').focus();}
 $('qGo').addEventListener('click',()=>{$('quizOv').hidden=true;
